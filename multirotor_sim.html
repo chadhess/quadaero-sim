@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quadcopter Aero Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #0c0e10;
+    --surface: #141618;
+    --surface2: #1c1f22;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --text: #e8e6e0;
+    --muted: #6b6f74;
+    --accent: #00e5a0;
+    --accent2: #3b82f6;
+    --accent3: #f59e0b;
+    --danger: #ef4444;
+    --warn: #f59e0b;
+    --ok: #00e5a0;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 16px; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── HEADER ── */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    background: rgba(12,14,16,0.92);
+    backdrop-filter: blur(12px);
+    z-index: 100;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-mark {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px;
+  }
+  .logo-dot {
+    border-radius: 50%;
+    background: var(--accent);
+    animation: spin-dot 3s linear infinite;
+    transform-origin: center;
+  }
+  .logo-dot:nth-child(1) { animation-delay: 0s; }
+  .logo-dot:nth-child(2) { animation-delay: 0.75s; }
+  .logo-dot:nth-child(3) { animation-delay: 1.5s; }
+  .logo-dot:nth-child(4) { animation-delay: 2.25s; }
+  @keyframes spin-dot {
+    0%, 60%, 100% { opacity: 0.25; transform: scale(0.8); }
+    20%, 40% { opacity: 1; transform: scale(1); }
+  }
+  .logo-title {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: var(--text);
+  }
+  .logo-title span { color: var(--accent); }
+  .header-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+
+  /* ── LAYOUT ── */
+  .app {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* ── SIDEBAR ── */
+  aside {
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 1.5rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 0.75rem;
+  }
+  .ctrl {
+    margin-bottom: 1rem;
+  }
+  .ctrl-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .ctrl-label {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+  .ctrl-val {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent);
+  }
+  input[type=range] {
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 2px;
+    background: var(--border2);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--bg);
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.3); }
+  input[type=range]::-moz-range-thumb {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--bg);
+    cursor: pointer;
+  }
+
+  /* ── METRICS PANEL ── */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .metric-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 2px;
+    height: 100%;
+    background: var(--accent);
+    opacity: 0.4;
+  }
+  .metric-card.blue::before { background: var(--accent2); }
+  .metric-card.amber::before { background: var(--accent3); }
+  .metric-lbl {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+  }
+  .metric-val {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1;
+  }
+  .metric-unit {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 300;
+  }
+
+  /* ── STATUS BADGE ── */
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--surface2);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .status-text {
+    font-family: var(--mono);
+    font-size: 12px;
+    flex: 1;
+  }
+  .twr-val {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  /* ── DISK VIS ── */
+  #diskCanvas {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  .disk-wrap {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+  }
+
+  /* ── MAIN CONTENT ── */
+  main {
+    overflow-y: auto;
+    padding: 1.5rem 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  /* ── TABS ── */
+  .tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0;
+  }
+  .tab {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    padding: 10px 20px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── PANELS ── */
+  .panel { display: none; }
+  .panel.active { display: flex; flex-direction: column; gap: 1.25rem; }
+
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+  }
+  .chart-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+  .chart-title span {
+    color: var(--accent);
+    margin-left: 8px;
+  }
+  .chart-wrap {
+    position: relative;
+    width: 100%;
+  }
+
+  .charts-2col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+  }
+
+  /* ── EQUATION BOX ── */
+  .eq-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 2;
+  }
+  .eq-box .eq {
+    color: var(--accent);
+    font-size: 13px;
+  }
+  .eq-box .comment {
+    color: var(--muted);
+    font-size: 11px;
+    opacity: 0.6;
+  }
+
+  /* ── FM GAUGE ── */
+  .fm-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1.25rem;
+  }
+  .fm-big {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .fm-number {
+    font-family: var(--mono);
+    font-size: 48px;
+    font-weight: 300;
+    line-height: 1;
+  }
+  .fm-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .fm-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--border2);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .fm-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--accent);
+    transition: width 0.3s ease;
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    aside { border-right: none; border-bottom: 1px solid var(--border); }
+    .charts-2col { grid-template-columns: 1fr; }
+    .fm-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">
+      <div class="logo-dot"></div>
+      <div class="logo-dot"></div>
+      <div class="logo-dot"></div>
+      <div class="logo-dot"></div>
+    </div>
+    <div class="logo-title">QUAD<span>AERO</span> — Rotorcraft Simulator</div>
+  </div>
+  <div class="header-meta">BEM · ACTUATOR DISK · BLADE ELEMENT</div>
+</header>
+
+<div class="app">
+
+  <!-- ── SIDEBAR ── -->
+  <aside>
+    <div>
+      <div class="section-label">Prop size</div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:6px;letter-spacing:0.06em;">PROP NOTATION</div>
+        <div style="font-family:var(--mono);font-size:26px;font-weight:300;color:var(--accent);line-height:1;" id="prop-notation">5×5.5</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;" id="prop-derived">127 mm · pitch 19.7° · chord 15 mm</div>
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-header"><span class="ctrl-label">Diameter (in)</span><span class="ctrl-val" id="diam-out">5.0 in</span></div>
+        <input type="range" min="2" max="20" step="0.5" value="5" id="diam" oninput="calc()">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-header"><span class="ctrl-label">Pitch (in)</span><span class="ctrl-val" id="pitch-out">5.5 in</span></div>
+        <input type="range" min="2" max="12" step="0.5" value="5.5" id="pitch" oninput="calc()">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-header"><span class="ctrl-label">Blade count</span><span class="ctrl-val" id="nb-out">2</span></div>
+        <input type="range" min="2" max="5" step="1" value="2" id="nb" oninput="calc()">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-header"><span class="ctrl-label">Number of rotors</span><span class="ctrl-val" id="nrotors-out">4</span></div>
+        <input type="range" min="1" max="12" step="1" value="4" id="nrotors" oninput="calc()">
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Operating conditions</div>
+      <div class="ctrl">
+        <div class="ctrl-header"><span class="ctrl-label">RPM</span><span class="ctrl-val" id="rpm-out">5500</span></div>
+        <input type="range" min="500" max="12000" step="100" value="5500" id="rpm" oninput="calc()">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-header"><span class="ctrl-label">Altitude</span><span class="ctrl-val" id="alt-out">0 m</span></div>
+        <input type="range" min="0" max="4000" step="100" value="0" id="alt" oninput="calc()">
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-header"><span class="ctrl-label">Vehicle mass</span><span class="ctrl-val" id="mass-out">500 g</span></div>
+        <input type="range" min="100" max="2000" step="10" value="500" id="mass" oninput="calc()">
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Vehicle status</div>
+      <div class="status-row" id="status-row">
+        <div class="status-dot" id="status-dot"></div>
+        <div class="status-text" id="status-text">—</div>
+        <div class="twr-val" id="twr-val">—</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Single rotor metrics</div>
+      <div class="metrics-grid" id="metrics-grid"></div>
+    </div>
+
+    <div>
+      <div class="section-label">Rotor disk</div>
+      <div class="disk-wrap">
+        <canvas id="diskCanvas" width="260" height="140"></canvas>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('sweep')">RPM sweep</button>
+      <button class="tab" onclick="switchTab('blade')">Blade element</button>
+      <button class="tab" onclick="switchTab('hover')">Hover efficiency</button>
+      <button class="tab" onclick="switchTab('theory')">Theory</button>
+    </div>
+
+    <!-- RPM SWEEP -->
+    <div id="tab-sweep" class="panel active">
+      <div class="charts-2col">
+        <div class="chart-card">
+          <div class="chart-title">Thrust vs RPM<span id="t-marker"></span></div>
+          <div class="chart-wrap" style="height:240px"><canvas id="sweepTChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Power vs RPM<span id="p-marker"></span></div>
+          <div class="chart-wrap" style="height:240px"><canvas id="sweepPChart"></canvas></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Thrust / Power ratio (efficiency proxy)</div>
+        <div class="chart-wrap" style="height:200px"><canvas id="tpChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- BLADE ELEMENT -->
+    <div id="tab-blade" class="panel">
+      <div class="charts-2col">
+        <div class="chart-card">
+          <div class="chart-title">Thrust loading along span</div>
+          <div class="chart-wrap" style="height:240px"><canvas id="bladeChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Angle of attack along span</div>
+          <div class="chart-wrap" style="height:240px"><canvas id="alphaChart"></canvas></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Induced inflow velocity along span</div>
+        <div class="chart-wrap" style="height:200px"><canvas id="inducedChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- HOVER EFFICIENCY -->
+    <div id="tab-hover" class="panel">
+      <div class="fm-row">
+        <div class="fm-big">
+          <div class="fm-label">Figure of merit</div>
+          <div class="fm-number" id="fm-big-val" style="color:var(--accent)">—</div>
+          <div class="fm-bar"><div class="fm-bar-fill" id="fm-bar-fill" style="width:0%"></div></div>
+          <div class="fm-label" style="margin-top:4px">Target: 0.60 – 0.80</div>
+        </div>
+        <div class="fm-big">
+          <div class="fm-label">Ideal hover power</div>
+          <div class="fm-number" id="pideal-big" style="color:var(--accent2)">—</div>
+          <div class="fm-label">Watts (actuator disk)</div>
+        </div>
+        <div class="fm-big">
+          <div class="fm-label">Actual power</div>
+          <div class="fm-number" id="pactual-big" style="color:var(--accent3)">—</div>
+          <div class="fm-label">Watts (BEM solve)</div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Figure of merit vs RPM — current geometry</div>
+        <div class="chart-wrap" style="height:240px"><canvas id="fomChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Thrust coefficient Ct &amp; power coefficient Cp vs RPM</div>
+        <div class="chart-wrap" style="height:220px"><canvas id="ctcpChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- THEORY -->
+    <div id="tab-theory" class="panel">
+      <div class="chart-card">
+        <div class="chart-title">Physics model — Blade Element Momentum (BEM)</div>
+        <div class="eq-box">
+          <div><span class="eq">prop notation:  D×P  (e.g. 5×5.5 = 5 in diameter, 5.5 in geometric pitch)</span></div>
+          <div class="comment">// standard hobby prop label; pitch is advance per revolution in ideal conditions</div>
+          <br>
+          <div><span class="eq">θ(r)  =  atan( P_m / (2π · r) )    →    θ₀.₇₅  =  atan( P_m / (2π · 0.75 · R) )</span></div>
+          <div class="comment">// geometric pitch → blade pitch angle evaluated at 75% radius (representative station)</div>
+          <br>
+          <div><span class="eq">chord  ≈  0.12 · D</span></div>
+          <div class="comment">// empirical rule for typical 2-blade hobby props; adjust for high-solidity or race props</div>
+          <br>
+          <div><span class="eq">T = ∫ dT  =  ∫ ½ρV² c [ Cl·cos(φ) − Cd·sin(φ) ] Nb dr</span></div>
+          <div class="comment">// elemental thrust integrated over blade span</div>
+          <br>
+          <div><span class="eq">Q = ∫ dQ  =  ∫ ½ρV² c [ Cd·cos(φ) + Cl·sin(φ) ] r Nb dr</span></div>
+          <div class="comment">// elemental torque (reaction to rotation)</div>
+          <br>
+          <div><span class="eq">P  =  Q · ω</span></div>
+          <div class="comment">// shaft power from torque and angular velocity</div>
+          <br>
+          <div><span class="eq">FM  =  P_ideal / P_actual  =  T^(3/2) / ( √(2ρA) · P )</span></div>
+          <div class="comment">// figure of merit — ratio to actuator-disk minimum power; ideal FM = 1</div>
+          <br>
+          <div><span class="eq">ρ(h)  =  ρ₀ · (1 − 2.2558×10⁻⁵ · h)^5.256</span></div>
+          <div class="comment">// ISA standard atmosphere density vs altitude</div>
+          <br>
+          <div><span class="eq">Cl  =  2π·α       Cd  =  Cd₀(Re) + k·α²</span></div>
+          <div class="comment">// thin airfoil lift + parabolic drag polar (k=0.015)</div>
+          <br>
+          <div><span class="eq">Cd₀(Re)  =  max(0.0085,  1.65 · Re⁻⁰·⁴⁰)       Re = ρ·V·c / μ</span></div>
+          <div class="comment">// calibrated to UIUC low-Re database; 0.041 at Re=10k → 0.015 at Re=150k</div>
+          <div class="comment">// previous formula (0.044·Re⁻⁰·²²) floored at 0.005 for all Re > 19k → Cd0 constant → FM flat</div>
+          <br>
+          <div><span class="eq">F  =  (2/π)·arccos( exp(−f) )       f = (Nb/2)·(R−r) / (r·sin φ)</span></div>
+          <div class="comment">// Prandtl tip loss factor: F→0 at blade tip, F→1 inboard</div>
+          <div class="comment">// φ = atan(vi/Ut) decreases with RPM → F increases with RPM → FM rises</div>
+          <br>
+          <div><span class="eq">Ct = T / (ρ·A·(ΩR)²)       Cp = P / (ρ·A·(ΩR)³)</span></div>
+          <div class="comment">// non-dimensional thrust and power coefficients (standard rotor form)</div>
+          <br>
+          <div><span class="eq">FM  =  Ct^(3/2) / (Cp · √2)</span></div>
+          <div class="comment">// momentum theory figure of merit — equivalent to P_ideal/P_actual</div>
+        </div>
+      </div>
+      <div class="charts-2col">
+        <div class="chart-card">
+          <div class="chart-title">Tip speed vs diameter &amp; RPM</div>
+          <div class="chart-wrap" style="height:220px"><canvas id="tipChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Air density vs altitude (ISA)</div>
+          <div class="chart-wrap" style="height:220px"><canvas id="rhoChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const rho0 = 1.225, g0 = 9.81, kappa = 1.15, Cd0 = 0.012, ClSlope = 2 * Math.PI;
+const MU_AIR = 1.81e-5; // dynamic viscosity of air, Pa·s
+
+// Empirical Cd0(Re) for low-Re thin airfoils (hobby prop range: Re 10k–300k)
+// Fit to UIUC low-Re airfoil database: Cd0 is high at low Re, falls as boundary
+// layer thins, flattens above Re~300k. This breaks self-similarity and gives
+// physically realistic FM variation with RPM.
+// Re-dependent Cd0 calibrated to UIUC low-Re airfoil data.
+// Old formula (0.044*Re^-0.22, floor 0.005) evaluated to 0.005 for ALL
+// Re > 19k — i.e. the entire hobby-prop operating range — so Cd0 was
+// effectively a constant, restoring self-similarity and flattening FM.
+// This formula uses Re^-0.40 (closer to laminar BL scaling). Floor of 0.0085
+// is only reached above Re~500k (large aircraft), never in hobby-prop range.
+//   Re=10k→0.041  Re=30k→0.027  Re=60k→0.021  Re=150k→0.015
+function cd0_from_re(Re) {
+  if (Re <= 0) return 0.08;
+  return Math.max(0.0085, 1.65 * Math.pow(Re, -0.40));
+}
+
+function rhoAtAlt(h) {
+  return rho0 * Math.pow(1 - 2.2558e-5 * h, 5.256);
+}
+
+function getInputs() {
+  const D_in    = parseFloat(document.getElementById('diam').value);
+  const pitch_in = parseFloat(document.getElementById('pitch').value);
+  const D_m     = D_in * 0.0254;
+  const R_m     = D_m / 2;
+  // Geometric pitch (in) → blade pitch angle at 75% radius
+  const pitch_m    = pitch_in * 0.0254;
+  const pitchAngle = Math.atan2(pitch_m, 2 * Math.PI * 0.75 * R_m);
+  // Chord: empirical ~12% of diameter for typical hobby props (well-established for 2-blade)
+  const chord = D_m * 0.12;
+  return {
+    D: D_m,
+    chord,
+    Nb: parseInt(document.getElementById('nb').value),
+    pitch: pitchAngle,
+    rpm: parseFloat(document.getElementById('rpm').value),
+    alt: parseFloat(document.getElementById('alt').value),
+    mass: parseFloat(document.getElementById('mass').value) / 1000,
+    nRotors: parseInt(document.getElementById('nrotors').value),
+    D_in,
+    pitch_in,
+    pitchDeg: pitchAngle * 180 / Math.PI
+  };
+}
+
+function prandtlF(Nb, r, R, phi) {
+  // Prandtl tip loss factor: F→1 away from tip, F→0 at tip.
+  // phi is the local inflow angle; clamped to avoid div/0 at root.
+  const f = (Nb / 2) * (R - r) / (r * Math.sin(Math.max(Math.abs(phi), 0.015)));
+  return (2 / Math.PI) * Math.acos(Math.min(1, Math.exp(-Math.max(f, 0))));
+}
+
+function computeBEM(D, chord, Nb, pitch, rpm, alt, nSeg) {
+  const R = D / 2, A = Math.PI * R * R;
+  const omega = rpm * 2 * Math.PI / 60;
+  const tipSpeed = omega * R;
+  const rho = rhoAtAlt(alt);
+  nSeg = nSeg || 24;
+  let T = 0, Q = 0, segs = [];
+
+  for (let i = 0; i < nSeg; i++) {
+    const r = R * (0.05 + 0.9 * (i + 0.5) / nSeg);
+    const Ut = omega * r;
+    let vi = 1.0; // m/s — generic initial guess; iteration converges regardless
+
+    for (let it = 0; it < 60; it++) {
+      const phi = Math.atan2(vi, Ut);
+      const F   = prandtlF(Nb, r, R, phi);
+      const alpha = pitch - phi;
+      const V   = Math.sqrt(Ut * Ut + vi * vi);
+      const Re_loc = rho * V * chord / MU_AIR;
+      const Cl  = ClSlope * alpha;
+      const Cd  = cd0_from_re(Re_loc) + 0.015 * alpha * alpha;
+      const dT_el = 0.5 * rho * V * V * chord * (Cl * Math.cos(phi) - Cd * Math.sin(phi));
+      // Annular momentum balance with Prandtl tip loss:
+      //   dT = 4·ρ·π·r·F·vi² dr  →  vi = sqrt(dT_el·Nb / (4π·r·ρ·F))
+      const viNew = Math.sqrt(Math.max(0, dT_el * Nb / (4 * Math.PI * r * rho * Math.max(F, 0.05))));
+      if (Math.abs(viNew - vi) < 1e-5) { vi = viNew; break; }
+      vi = 0.55 * vi + 0.45 * viNew; // under-relaxation for stability
+    }
+
+    const phi   = Math.atan2(vi, Ut);
+    const F     = prandtlF(Nb, r, R, phi);
+    const alpha = pitch - phi;
+    const V     = Math.sqrt(Ut * Ut + vi * vi);
+    const Re_loc = rho * V * chord / MU_AIR;
+    const Cl    = ClSlope * alpha;
+    const Cd    = cd0_from_re(Re_loc) + 0.015 * alpha * alpha;
+    const dr    = 0.9 * R / nSeg;
+    // Apply F to blade forces (Prandtl corrects the bound circulation near tip)
+    const dT = F * 0.5 * rho * V * V * chord * (Cl * Math.cos(phi) - Cd * Math.sin(phi)) * Nb * dr;
+    const dQ = F * 0.5 * rho * V * V * chord * (Cd * Math.cos(phi) + Cl * Math.sin(phi)) * r * Nb * dr;
+    T += dT; Q += dQ;
+    segs.push({ r: r / R, dT: dT / dr, vi, alpha: alpha * 180 / Math.PI });
+  }
+
+  const P = Q * omega;
+  // Non-dimensional thrust and power coefficients (standard rotor form)
+  const Ct = T  / (rho * A * tipSpeed * tipSpeed);
+  const Cp = P  / (rho * A * tipSpeed * tipSpeed * tipSpeed);
+  // FM = Ct^(3/2) / (Cp * sqrt(2))  — momentum theory definition as requested
+  const FM = (Cp > 1e-9) ? Math.pow(Math.max(Ct, 0), 1.5) / (Cp * Math.SQRT2) : 0;
+  const P_ideal = Math.pow(Math.max(T, 0), 1.5) / Math.sqrt(2 * rho * A);
+  return { T, Q, P, FM, P_ideal, Ct, Cp, segs };
+}
+
+let charts = {};
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+const COLORS = {
+  green: '#00e5a0',
+  blue: '#3b82f6',
+  amber: '#f59e0b',
+  red: '#ef4444',
+  purple: '#a855f7',
+  muted: 'rgba(255,255,255,0.18)'
+};
+
+function makeChart(id, config) {
+  destroyChart(id);
+  charts[id] = new Chart(document.getElementById(id), config);
+  return charts[id];
+}
+
+const BASE_OPTS = (xlabel, ylabel) => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: { duration: 200 },
+  plugins: { legend: { display: false } },
+  scales: {
+    x: {
+      title: { display: true, text: xlabel, color: 'rgba(255,255,255,0.35)', font: { family: "'JetBrains Mono', monospace", size: 10 } },
+      ticks: { color: 'rgba(255,255,255,0.35)', font: { family: "'JetBrains Mono', monospace", size: 10 }, maxTicksLimit: 8 },
+      grid: { color: 'rgba(255,255,255,0.04)' },
+      border: { color: 'rgba(255,255,255,0.08)' }
+    },
+    y: {
+      title: { display: true, text: ylabel, color: 'rgba(255,255,255,0.35)', font: { family: "'JetBrains Mono', monospace", size: 10 } },
+      ticks: { color: 'rgba(255,255,255,0.35)', font: { family: "'JetBrains Mono', monospace", size: 10 }, maxTicksLimit: 6 },
+      grid: { color: 'rgba(255,255,255,0.04)' },
+      border: { color: 'rgba(255,255,255,0.08)' }
+    }
+  }
+});
+
+function lineDs(data, color, fill) {
+  return { data, borderColor: color, backgroundColor: fill || color + '14', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: !!fill };
+}
+
+function calc() {
+  const p = getInputs();
+
+  // Update slider readouts
+  document.getElementById('diam-out').textContent    = p.D_in.toFixed(1) + ' in';
+  document.getElementById('pitch-out').textContent   = p.pitch_in.toFixed(1) + ' in';
+  document.getElementById('nb-out').textContent      = p.Nb;
+  document.getElementById('nrotors-out').textContent = p.nRotors;
+  document.getElementById('rpm-out').textContent     = Math.round(p.rpm);
+  document.getElementById('alt-out').textContent     = Math.round(p.alt) + ' m';
+  document.getElementById('mass-out').textContent    = Math.round(p.mass * 1000) + ' g';
+
+  // Prop notation display
+  document.getElementById('prop-notation').textContent =
+    p.D_in.toFixed(1) + '×' + p.pitch_in.toFixed(1);
+  document.getElementById('prop-derived').textContent =
+    Math.round(p.D * 1000) + ' mm · pitch ' + p.pitchDeg.toFixed(1) + '° · chord ' + Math.round(p.chord * 1000) + ' mm';
+
+  const r = computeBEM(p.D, p.chord, p.Nb, p.pitch, p.rpm, p.alt, 30);
+  const T_all = r.T * p.nRotors, W = p.mass * g0, TWR = T_all / W;
+  const tipSpeed = (p.rpm / 60 * Math.PI * p.D);
+
+  const dot = document.getElementById('status-dot');
+  const stxt = document.getElementById('status-text');
+  const tval = document.getElementById('twr-val');
+  if (TWR >= 2) {
+    dot.style.background = COLORS.green; stxt.style.color = COLORS.green;
+    stxt.textContent = 'hover capable'; tval.style.color = COLORS.green;
+  } else if (TWR >= 1) {
+    dot.style.background = COLORS.amber; stxt.style.color = COLORS.amber;
+    stxt.textContent = 'marginal thrust'; tval.style.color = COLORS.amber;
+  } else {
+    dot.style.background = COLORS.red; stxt.style.color = COLORS.red;
+    stxt.textContent = 'insufficient thrust'; tval.style.color = COLORS.red;
+  }
+  tval.textContent = 'TWR ' + TWR.toFixed(2) + 'x';
+
+  document.getElementById('metrics-grid').innerHTML = [
+    { lbl: 'T (1 rotor)',              val: r.T.toFixed(2),           unit: 'N',    cls: '' },
+    { lbl: 'T (' + p.nRotors + ' rotors)', val: T_all.toFixed(2),    unit: 'N',    cls: '' },
+    { lbl: 'Power (1 rotor)',          val: r.P.toFixed(1),           unit: 'W',    cls: 'blue' },
+    { lbl: 'Total power',              val: (r.P * p.nRotors).toFixed(1), unit: 'W', cls: 'blue' },
+    { lbl: 'Tip speed',                val: tipSpeed.toFixed(0),      unit: 'm/s',  cls: 'amber' },
+    { lbl: 'Fig. merit',               val: r.FM.toFixed(3),          unit: '',     cls: 'amber' },
+  ].map(m => `<div class="metric-card ${m.cls}"><div class="metric-lbl">${m.lbl}</div><div class="metric-val">${m.val}<span class="metric-unit"> ${m.unit}</span></div></div>`).join('');
+
+  document.getElementById('fm-big-val').textContent  = r.FM.toFixed(3);
+  document.getElementById('pideal-big').textContent  = r.P_ideal.toFixed(1);
+  document.getElementById('pactual-big').textContent = r.P.toFixed(1);
+  document.getElementById('fm-bar-fill').style.width = Math.min(100, r.FM * 100) + '%';
+
+  drawDisk(p, r);
+
+  const active = document.querySelector('.tab.active').getAttribute('onclick').match(/'(\w+)'/)[1];
+  refreshTab(active, p, r);
+}
+
+function drawDisk(p, r) {
+  const cv = document.getElementById('diskCanvas');
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  ctx.clearRect(0, 0, W, H);
+  const cx = W / 2, cy = H / 2 - 8;
+  const R_px = Math.min(cx, cy) * 0.82;
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx, cy, R_px, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  [0.33, 0.66].forEach(f => {
+    ctx.beginPath(); ctx.arc(cx, cy, R_px * f, 0, Math.PI * 2); ctx.stroke();
+  });
+  for (let b = 0; b < p.Nb; b++) {
+    const angle = (b / p.Nb) * Math.PI * 2 - Math.PI / 2;
+    const bx = cx + Math.cos(angle) * R_px * 0.88;
+    const by = cy + Math.sin(angle) * R_px * 0.88;
+    const grd = ctx.createLinearGradient(cx, cy, bx, by);
+    grd.addColorStop(0, '#00e5a0');
+    grd.addColorStop(1, 'rgba(0,229,160,0.2)');
+    ctx.strokeStyle = grd;
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(bx, by); ctx.stroke();
+  }
+  ctx.fillStyle = '#00e5a0';
+  ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.font = '10px JetBrains Mono, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(p.D_in.toFixed(1) + '×' + p.pitch_in.toFixed(1) + '"  ·  ' + p.Nb + 'B  ·  ' + Math.round(p.rpm) + ' RPM', cx, H - 4);
+}
+
+function refreshTab(name, p, r) {
+  if (name === 'sweep') buildSweep(p, r);
+  else if (name === 'blade') buildBlade(p, r);
+  else if (name === 'hover') buildHover(p, r);
+  else if (name === 'theory') buildTheory(p);
+}
+
+function buildSweep(p, r) {
+  const rpms = [], T = [], P = [], TP = [];
+  for (let rpm = 300; rpm <= 12200; rpm += 150) {
+    const res = computeBEM(p.D, p.chord, p.Nb, p.pitch, rpm, p.alt, 14);
+    rpms.push(rpm);
+    T.push(parseFloat(res.T.toFixed(4)));
+    P.push(parseFloat(res.P.toFixed(3)));
+    TP.push(res.P > 0 ? parseFloat((res.T / res.P).toFixed(4)) : 0);
+  }
+  const xOpt = { type: 'linear', ticks: { callback: v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v } };
+  makeChart('sweepTChart', { type: 'line', data: { labels: rpms, datasets: [{ ...lineDs(T, COLORS.green, true) }] }, options: { ...BASE_OPTS('RPM', 'Thrust (N)'), scales: { x: { ...BASE_OPTS().x, ...xOpt }, y: BASE_OPTS().y } } });
+  makeChart('sweepPChart', { type: 'line', data: { labels: rpms, datasets: [{ ...lineDs(P, COLORS.blue, true) }] }, options: { ...BASE_OPTS('RPM', 'Power (W)'), scales: { x: { ...BASE_OPTS().x, ...xOpt }, y: BASE_OPTS().y } } });
+  makeChart('tpChart', { type: 'line', data: { labels: rpms, datasets: [{ ...lineDs(TP, COLORS.amber, true) }] }, options: { ...BASE_OPTS('RPM', 'Thrust/Power (N/W)'), scales: { x: { ...BASE_OPTS().x, ...xOpt }, y: BASE_OPTS().y } } });
+}
+
+function buildBlade(p, r) {
+  const rs = r.segs.map(s => s.r.toFixed(3));
+  const dTs = r.segs.map(s => parseFloat(s.dT.toFixed(5)));
+  const vis = r.segs.map(s => parseFloat(s.vi.toFixed(4)));
+  const alphas = r.segs.map(s => parseFloat(s.alpha.toFixed(3)));
+  makeChart('bladeChart', { type: 'line', data: { labels: rs, datasets: [{ ...lineDs(dTs, COLORS.green, true) }] }, options: BASE_OPTS('r/R', 'dT/dr (N/m)') });
+  makeChart('alphaChart', { type: 'line', data: { labels: rs, datasets: [{ ...lineDs(alphas, COLORS.red, true) }] }, options: BASE_OPTS('r/R', 'AoA (deg)') });
+  makeChart('inducedChart', { type: 'line', data: { labels: rs, datasets: [{ ...lineDs(vis, COLORS.blue, true) }] }, options: BASE_OPTS('r/R', 'Induced velocity (m/s)') });
+}
+
+function buildHover(p, r) {
+  const rpms = [], foms = [], cts = [], cps = [];
+  for (let rpm = 400; rpm <= 12200; rpm += 180) {
+    const res = computeBEM(p.D, p.chord, p.Nb, p.pitch, rpm, p.alt, 16);
+    if (res.T > 0.002 && res.FM > 0 && res.FM <= 1) {
+      rpms.push(rpm);
+      foms.push(parseFloat(res.FM.toFixed(4)));
+      cts.push(parseFloat(res.Ct.toFixed(6)));
+      cps.push(parseFloat(res.Cp.toFixed(6)));
+    }
+  }
+  // Auto-scale y-axis: pad 10% above/below data range so curve fills the chart
+  const fMin = Math.max(0, Math.min(...foms) - 0.05);
+  const fMax = Math.min(1, Math.max(...foms) + 0.05);
+  const xTicks = { type: 'linear', ticks: { callback: v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v, color: 'rgba(255,255,255,0.35)', font: { family: "'JetBrains Mono', monospace", size: 10 }, maxTicksLimit: 8 }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { color: 'rgba(255,255,255,0.08)' } };
+  const opts = { ...BASE_OPTS('RPM', 'Figure of merit  FM = Ct^(3/2) / (Cp·√2)'), scales: { x: { ...BASE_OPTS().x, ...xTicks }, y: { ...BASE_OPTS().y, min: parseFloat(fMin.toFixed(2)), max: parseFloat(fMax.toFixed(2)) } } };
+  makeChart('fomChart', { type: 'line', data: { labels: rpms, datasets: [{ ...lineDs(foms, COLORS.green, true) }] }, options: opts });
+  // Secondary chart: Ct and Cp vs RPM
+  const ctMax = Math.max(...cts) * 1.15, cpMax = Math.max(...cps) * 1.15;
+  makeChart('ctcpChart', {
+    type: 'line',
+    data: { labels: rpms, datasets: [
+      { ...lineDs(cts, COLORS.blue, false), label: 'Ct', yAxisID: 'yL' },
+      { ...lineDs(cps, COLORS.amber, false), label: 'Cp', borderDash: [5,3], yAxisID: 'yR' }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 200 },
+      plugins: { legend: { display: true, labels: { usePointStyle: true, boxWidth: 8, color: 'rgba(255,255,255,0.5)', font: { family: "'JetBrains Mono', monospace", size: 11 } } } },
+      scales: {
+        x: { ...BASE_OPTS().x, ...xTicks },
+        yL: { ...BASE_OPTS().y, position: 'left',  title: { display: true, text: 'Ct', color: COLORS.blue,  font: { family: "'JetBrains Mono', monospace", size: 10 } }, min: 0, max: parseFloat(ctMax.toFixed(5)) },
+        yR: { ...BASE_OPTS().y, position: 'right', title: { display: true, text: 'Cp', color: COLORS.amber, font: { family: "'JetBrains Mono', monospace", size: 10 } }, min: 0, max: parseFloat(cpMax.toFixed(5)), grid: { drawOnChartArea: false } }
+      }
+    }
+  });
+}
+
+function buildTheory(p) {
+  const diams_in = [2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20];
+  const tipDs = diams_in.map(d => parseFloat((p.rpm / 60 * Math.PI * d * 0.0254).toFixed(1)));
+  const alts_ = [], rhos = [];
+  for (let h = 0; h <= 4000; h += 200) { alts_.push(h); rhos.push(parseFloat(rhoAtAlt(h).toFixed(4))); }
+  makeChart('tipChart', { type: 'bar', data: { labels: diams_in.map(d => d + '"'), datasets: [{ data: tipDs, backgroundColor: COLORS.amber + '60', borderColor: COLORS.amber, borderWidth: 1 }] }, options: BASE_OPTS('Diameter', 'Tip speed (m/s)') });
+  makeChart('rhoChart', { type: 'line', data: { labels: alts_, datasets: [{ ...lineDs(rhos, COLORS.purple, true) }] }, options: BASE_OPTS('Altitude (m)', 'Air density (kg/m³)') });
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => {
+    t.classList.toggle('active', t.getAttribute('onclick').includes("'" + name + "'"));
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  const p = getInputs();
+  const r = computeBEM(p.D, p.chord, p.Nb, p.pitch, p.rpm, p.alt, 30);
+  refreshTab(name, p, r);
+}
+
+calc();
+</script>
+</body>
+</html>
